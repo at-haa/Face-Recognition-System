@@ -29,5 +29,15 @@ class keypad():
                     return self.KEYPAD[j][i]
             GPIO.output(self.COLUMN[i], GPIO.LOW)
         return None
+    
+    
+    def getKeyBusyWait(self):
+        while True:
+            digit = None
+            while digit == None:
+                digit = kp.getKey()
+            while digit == kp.getKey():
+                pass 
+            return digit
 
 
