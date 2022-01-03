@@ -2,18 +2,19 @@ from imutils.video import VideoStream
 import imutils
 import time
 import cv2
+import urllib 
+import numpy as np
 
 class FaceDetector:
 
     def __init__(self):
-        self.vs = VideoStream(usePiCamera=True).start()
+        self.vs = VideoStream("http://127.0.0.1:8081/").start()
         time.sleep(3.0)
         self.detector = cv2.CascadeClassifier("Rpi_Face_Recognition/haarcascade_frontalface_default.xml")
-
+    
     def detect_face(self):
         frame = self.vs.read()
         frame = imutils.resize(frame, width=500)
-
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
