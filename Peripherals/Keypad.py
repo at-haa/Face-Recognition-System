@@ -1,13 +1,14 @@
 import RPi.GPIO as GPIO
- 
-class keypad():
+import time
+
+class Keypad():
     def __init__(self):
         GPIO.setmode(GPIO.BOARD)
         self.KEYPAD = [
-            [1,2,3,"A"],
-            [4,5,6,"B"],
-            [7,8,9,"C"],
-            ["*",0,"#","D"]
+            ["1","2","3","A"],
+            ["4","5","6","B"],
+            ["7","8","9","C"],
+            ["*","0","#","D"]
         ]
 
         self.ROW    = [26,24,23,22]
@@ -35,9 +36,9 @@ class keypad():
         while True:
             digit = None
             while digit == None:
-                digit = kp.getKey()
-            while digit == kp.getKey():
-                pass 
+                digit = self.getKey()
+            while digit == self.getKey():
+                time.sleep(0.1)
             return digit
 
 
