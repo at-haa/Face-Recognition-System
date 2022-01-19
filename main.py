@@ -4,7 +4,8 @@ import requests
 from rpi_lcd import LCD
 import os
 import time
-import subprocess
+
+is_owner = 2
 
 
 def turn_off_screen():
@@ -32,39 +33,52 @@ def exit_stream():
 
 
 def send_photo_request():
-    url = 'https://35d4e1d5-ca62-4148-99ac-fcbfe6d3758f.mock.pstmn.io/check'
-    files = {'media': open('image.jpg', 'rb')}
-    return requests.post(url, files=files)
+    url = "http://192.168.1.51:3000/v1/validateImage"
+    files = {'image': open('image.jpg', 'rb')}
+    global is_owner
+    is_owner = 2
+    try:
+        res = requests.post(url, files=files)
+        if res.status_code == 200:
+            is_owner = 1
+        elif res.status_code == 404:
+            is_owner = 0
+    except requests.exceptions.RequestException:
+        print("error")
+    return
+
+
+def send_code_request(code):
+    url = "http://192.168.1.51:3000/v1/validateCode"
+    data = {"code": code}
+    try:
+        res = requests.post(url, data=data)
+        if res.json()['result'] != "Messages Sent":
+            print("Enter!!!")
+            return True
+        else:
+            print("Wrong Code!!!")
+            return False
+    except requests.exceptions.RequestException:
+        print("Error")
+    return None
 
 
 if __name__ == '__main__':
+
     keypad = Keypad()
-    turn_off_screen()
-
-    start_stream_service()
-    time.sleep(1)
-
-    show_stream()
-
     lcd = LCD()
     lcd.clear()
-
-    # led = LED(12, 38, 40)
-
+    turn_off_screen()
+    start_stream_service()
+    time.sleep(1)
+    show_stream()
     face_detector = FaceDetector()
-
-    detect_time = time.time()
-    current_time = None
-
-    detected = 0
     keypad_str = ""
-    while True:
-        if face_detector.detect_face() and detected == 0:
-            detect_time = time.time()
-            detected = 1
-            turn_on_screen()
 
-        if detected == 1:
+    while True:
+        if face_detector.detect_face():
+            turn_on_screen()
             lcd.text("Welcome!", 1)
             message = "                Please Look at The Camera!                "
             for i in range(50):
@@ -73,46 +87,58 @@ if __name__ == '__main__':
             lcd.clear()
             if face_detector.detect_face():
                 lcd.text("Authorizing...", 1)
-                time.sleep(1)  # send image to server
+                send_photo_request()
+                time.sleep(2)
+                print("is_owner: " + str(is_owner))
                 lcd.clear()
                 start = time.time()
-                seconds = 120
+                validation_time = 60
+                seconds = validation_time
                 lcd.text("Enter Your Code", 2)
                 new_key = None
                 old_key = None
-                while seconds > 0:
-
-                    new_time = int(120 - (time.time() - start))
+                while seconds > 0 and is_owner != 2:
+                    elapsed_time = int(time.time() - start)
                     new_key = keypad.getKey()
-                    if new_key != old_key and new_key != None:
-                        keypad_str = keypad_str + new_key
+                    if new_key != old_key and new_key is not None:
+                        if new_key == "C":
+                            keypad_str = ""
+                        elif new_key == "D":
+                            if len(keypad_str) > 1:
+                                keypad_str = keypad_str[0:-1]
+                            else:
+                                keypad_str = ""
+                        elif new_key in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
+                            keypad_str = keypad_str + new_key
+                            if len(keypad_str) == 4 and is_owner == 1:
+                                lcd.text("Validating Code...", 2)
+                                result = send_code_request(keypad_str)
+                                if result is None:
+                                    break
+                                elif result:
+                                    lcd.clear()
+                                    lcd.text("Welcome!",1)
+                                    lcd.text("Door Unlocked", 2)
+                                    time.sleep(2)
+                                    break
+                                else:
+                                    lcd.text("Re-Enter Code", 2)
+                                    time.sleep(2)
+                                    keypad_str = ""
+
+                            elif len(keypad_str) == 11 and is_owner == 0:
+                                # send code to server and check status// detected = 0 and clear lcd
+                                break
                         lcd.text(keypad_str, 2)
-                        if len(keypad_str) == 4:
-                            # send code to server and check status// detected = 0 and clear lcd
-                            break
-                        print(keypad_str)
                     time.sleep(0.1)
                     old_key = new_key
-                    if seconds - new_time >= 1:
-                        seconds = new_time
+                    if elapsed_time <= validation_time:
+                        seconds = validation_time - elapsed_time
                         lcd.text(str(seconds) + " Seconds Left", 1)
-            else:
                 lcd.clear()
-                detected = 0
+                keypad_str = ""
+                is_owner = 2
                 turn_off_screen()
-
-        current_time = time.time()
-        if current_time - detect_time > 10 and detected == 1:
-            detected = 0
-            turn_off_screen()
-
-#             status_code = 0
-#             while status_code != 200:
-#                 response = send_photo_request()
-#                 try:
-#                     data = response.json()
-#                     status_code = response.status_code
-#                     print(status_code)
-#                 except requests.exceptions.RequestException:
-#                     print(response.text)
+            else:
+                turn_off_screen()
 
