@@ -1,5 +1,6 @@
 from Rpi_Face_Recognition.facial import FaceDetector
 from Peripherals.Keypad import Keypad
+from Peripherals.LED import LED
 import requests
 from rpi_lcd import LCD
 import os
@@ -42,6 +43,7 @@ def send_photo_request():
         if res.status_code == 200:
             is_owner = 1
         elif res.status_code == 404:
+            print("here")
             is_owner = 0
     except requests.exceptions.RequestException:
         print("error")
@@ -64,11 +66,29 @@ def send_code_request(code):
     return None
 
 
+def send_phone_request(code):
+    url = "http://192.168.1.51:3000/v1/validateCode"
+    data = {"code": code}
+    files = {'image': open('image.jpg', 'rb')}
+    try:
+        res = requests.post(url, data=data, files=files)
+        if res.json()['result'] != "Messages Sent":
+            print("Wait for the owner open the door")
+            return True
+        else:
+            print("something went wrong")
+            return False
+    except requests.exceptions.RequestException:
+        print("Error")
+    return None
+
+
 if __name__ == '__main__':
 
     keypad = Keypad()
     lcd = LCD()
     lcd.clear()
+    led = LED(40)
     turn_off_screen()
     start_stream_service()
     time.sleep(1)
@@ -94,7 +114,10 @@ if __name__ == '__main__':
                 start = time.time()
                 validation_time = 60
                 seconds = validation_time
-                lcd.text("Enter Your Code", 2)
+                if is_owner == 1:
+                    lcd.text("Enter Your Code", 2)
+                else:
+                    lcd.text("Enter Phone Num", 2)
                 new_key = None
                 old_key = None
                 while seconds > 0 and is_owner != 2:
@@ -117,9 +140,11 @@ if __name__ == '__main__':
                                     break
                                 elif result:
                                     lcd.clear()
-                                    lcd.text("Welcome!",1)
+                                    lcd.text("Welcome!", 1)
                                     lcd.text("Door Unlocked", 2)
-                                    time.sleep(2)
+                                    led.red_on()
+                                    time.sleep(3)
+                                    led.red_off()
                                     break
                                 else:
                                     lcd.text("Re-Enter Code", 2)
@@ -127,8 +152,17 @@ if __name__ == '__main__':
                                     keypad_str = ""
 
                             elif len(keypad_str) == 11 and is_owner == 0:
-                                # send code to server and check status// detected = 0 and clear lcd
-                                break
+                                lcd.text("Validating Phone...", 2)
+                                result = send_phone_request(keypad_str)
+                                if result is None or (not result):
+                                    break
+                                elif result:
+                                    lcd.clear()
+                                    lcd.text("The Owner Will!", 1)
+                                    lcd.text("Open The Door!", 2)
+                                    time.sleep(3)
+                                    break
+
                         lcd.text(keypad_str, 2)
                     time.sleep(0.1)
                     old_key = new_key
